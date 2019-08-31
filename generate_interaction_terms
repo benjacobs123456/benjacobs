@@ -1,0 +1,126 @@
+# master function for getting interaction terms of a given table - input is a vector 
+# of specific format
+# format is a vector of 8 values:
+# n_cases_rf1neg_rf2_neg | n_controls_rf1neg_rf2_neg | n_cases_rf1pos_rf2_neg | n_controls_rf1pos_rf2_neg |
+# n_cases_rf1neg_rf2_pos | n_controls_rf1neg_rf2_pos | n_cases_rf1pos_rf2_pos | n_controls_rf1pos_rf2_pos
+
+generate_interaction_terms = function(y){
+  require(readr)
+  #define the populate table function  
+  # this function creates a table of columns:
+  # case status (0 or 1), risk factor 1 present (0 or 1),
+  # risk factor 2 present (0 or 1), and indicator variable for
+  # the interaction term
+  # ie 0 = neither present
+  # 1 = rf1 present only
+  # 2 = rf2 present only
+  #3 = both present
+  
+populate_table = function(x) {
+  new_table = data.frame()
+  
+  for (i in 1:x[1]){
+    new_table = rbind(new_table,c(1,0,0,0))
+  }
+  
+  for (i in 1:x[2]){
+    new_table = rbind(new_table,c(0,0,0,0))
+  }
+  
+  for (i in 1:x[3]){
+    new_table = rbind(new_table,c(1,1,0,1))
+  }
+  
+  for (i in 1:x[4]){
+    new_table = rbind(new_table,c(0,1,0,1))
+  }
+  for (i in 1:x[5]){
+    new_table = rbind(new_table,c(1,0,1,2))
+  }
+  
+  for (i in 1:x[6]){
+    new_table = rbind(new_table,c(0,0,1,2))
+  }
+  for (i in 1:x[7]){
+    new_table = rbind(new_table,c(1,1,1,3))
+  }
+  for (i in 1:x[8]){
+    new_table = rbind(new_table,c(0,1,1,3))
+  }
+  colnames(new_table) = c('Caseness','Riskfactor1','Riskfactor2','Indicator')
+  
+  new_table <<- data.frame(new_table)
+  
+}
+
+populate_table(y)
+
+
+
+# first make sure the indicator var is coded as a factor
+new_table$Indicator = factor(new_table$Indicator)
+
+model_1 = summary(glm(data=data.frame(new_table),formula = Caseness ~ Riskfactor1 * Riskfactor2, family = binomial(link="logit")))
+
+#glm with separately coded interaction vars
+model_2 = summary(glm(data=data.frame(new_table),formula = Caseness ~ Indicator, family = binomial(link="logit")))
+covariate_table = vcov(model_2)
+OR_RF1 <<- exp(model_2$coefficients[2])
+OR_RF2 <<- exp(model_2$coefficients[3])
+OR_interaction <<- exp(model_2$coefficients[4])
+RERI <<- 1 + OR_interaction - OR_RF1 - OR_RF2
+AP <<- RERI / OR_interaction
+Synergy <<- (OR_interaction-1)/(OR_RF1 + OR_RF2 - 2)
+  
+#calculate se of RERI
+h1 = -exp(model_2$coefficients[2])
+h2 = -exp(model_2$coefficients[3])
+h3 = exp(model_2$coefficients[4])
+h1s1 = h1^2*covariate_table[2,2]
+h2s2 = h2^2*covariate_table[3,3]
+h3s3 = h3^2*covariate_table[4,4]
+h1h2s12_2 = 2*h1*h2*covariate_table[2,3]
+h1h3s13_2 = 2*h1*h3*covariate_table[2,4]
+h2h3s23_2 = 2*h2*h3*covariate_table[3,4]
+var_RERI = h1s1 + h2s2 + h3s3 + h1h2s12_2 + h1h3s13_2 + h2h3s23_2
+se_RERI <<- sqrt(var_RERI)
+  
+  
+# calculate se of AP
+h1 = -exp(model_2$coefficients[2]-model_2$coefficients[4])
+h2 = -exp(model_2$coefficients[3]-model_2$coefficients[4])
+h3 = (exp(model_2$coefficients[2])+exp(model_2$coefficients[3])-1)/exp(model_2$coefficients[4])
+h1s1 = h1^2*covariate_table[2,2]
+h2s2 = h2^2*covariate_table[3,3]
+h3s3 = h3^2*covariate_table[4,4]
+h1h2s12_2 = 2*h1*h2*covariate_table[2,3]
+h1h3s13_2 = 2*h1*h3*covariate_table[2,4]
+h2h3s23_2 = 2*h2*h3*covariate_table[3,4]
+var_AP = h1s1 + h2s2 + h3s3 + h1h2s12_2 + h1h3s13_2 + h2h3s23_2
+se_AP <<- sqrt(var_AP)
+
+#calculate se of synergy
+h1 = -exp(model_2$coefficients[2])/(exp(model_2$coefficients[2])+exp(model_2$coefficients[3])-2)
+h2 = -exp(model_2$coefficients[3])/(exp(model_2$coefficients[2])+exp(model_2$coefficients[3])-2)
+h3 = exp(model_2$coefficients[4])/(exp(model_2$coefficients[4])-1)
+h1s1 = h1^2*covariate_table[2,2]
+h2s2 = h2^2*covariate_table[3,3]
+h3s3 = h3^2*covariate_table[4,4]
+h1h2s12_2 = 2*h1*h2*covariate_table[2,3]
+h1h3s13_2 = 2*h1*h3*covariate_table[2,4]
+h2h3s23_2 = 2*h2*h3*covariate_table[3,4]
+var_synergy = h1s1 + h2s2 + h3s3 + h1h2s12_2 + h1h3s13_2 + h2h3s23_2
+se_synergy <<- exp(sqrt(var_synergy))
+  
+  
+lnOR_interaction_term = model_1$coefficients[[4]]
+lnOR_interaction_term_se = model_1$coefficients[[8]]
+Multiplicative_interaction <<- exp(lnOR_interaction_term)
+SE_Multiplicative_interaction <<- exp(lnOR_interaction_term_se)
+
+
+output_df <<- data.frame(AP,se_AP,RERI,se_RERI,Synergy,se_synergy,Multiplicative_interaction,SE_Multiplicative_interaction)
+readr::write_tsv(output_df,'./output_df.tsv')
+output_df
+}
+
