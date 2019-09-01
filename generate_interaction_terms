@@ -110,7 +110,7 @@ h1h2s12_2 = 2*h1*h2*covariate_table[2,3]
 h1h3s13_2 = 2*h1*h3*covariate_table[2,4]
 h2h3s23_2 = 2*h2*h3*covariate_table[3,4]
 var_synergy = h1s1 + h2s2 + h3s3 + h1h2s12_2 + h1h3s13_2 + h2h3s23_2
-se_synergy <<- exp(sqrt(var_synergy))
+se_log_synergy <<- sqrt(var_synergy)
   
   
 lnOR_interaction_term = model_1$coefficients[[4]]
@@ -119,7 +119,7 @@ Multiplicative_interaction <<- exp(lnOR_interaction_term)
 SE_Multiplicative_interaction <<- exp(lnOR_interaction_term_se)
 
 
-output_df <<- data.frame(AP,se_AP,RERI,se_RERI,Synergy,se_synergy,Multiplicative_interaction,SE_Multiplicative_interaction)
+output_df <<- data.frame(AP,se_AP,RERI,se_RERI,Synergy,se_log_synergy,Multiplicative_interaction,SE_Multiplicative_interaction)
 readr::write_tsv(output_df,'./output_df.tsv')
 output_df
 }
